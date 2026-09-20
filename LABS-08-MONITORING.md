@@ -1,11 +1,11 @@
 # Module 08 — Monitoring & Observability
 
-Репозиторий создан на базе шаблона `mentorchita/telco-churn-mlops-synthetic-08`.
-Проект развёрнут, модель обучена, стек мониторинга поднят через Docker Compose.
+Репозиторій створено на базі шаблону `mentorchita/telco-churn-mlops-synthetic-08`.
+Проєкт розгорнуто, модель натреновано, стек моніторингу піднято через Docker Compose.
 
-## Окружение
+## Середовище
 
-| Компонент | Версия / параметры |
+| Компонент | Версія / параметри |
 |---|---|
 | VM | Ubuntu 22.04, 4 vCPU, 8 GB RAM, 61 GB диск |
 | Docker | 29.7.2, Compose v5.5.0 |
@@ -18,7 +18,7 @@
 | Alertmanager | v0.26.0, порт 9093 |
 | node-exporter / cAdvisor / Pushgateway | 9100 / 8080 / 9091 |
 
-## 1. Подготовка данных и обучение модели
+## 1. Підготовка даних і тренування моделі
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
@@ -28,28 +28,28 @@ python src/generate_dataset.py --samples 20000 --output data/telco_customers.csv
 python pipelines/train.py
 ```
 
-Результат: `RandomForestClassifier` в sklearn-Pipeline, **accuracy 0.6420**,
-модель сохранена в `models/churn_model.pkl`.
+Результат: `RandomForestClassifier` у sklearn-Pipeline, **accuracy 0.6420**,
+модель збережено у `models/churn_model.pkl`.
 
-Проверка соответствия схемы API и модели:
+Перевірка відповідності схеми API та моделі:
 
 ```bash
-python -c "from src.api.predict import predict_churn; print(predict_churn({...19 полей...}))"
-# {'churn_probability': 0.95, 'churn_prediction': 1, 'features_used': [19 признаков]}
+python -c "from src.api.predict import predict_churn; print(predict_churn({...19 полів...}))"
+# {'churn_probability': 0.95, 'churn_prediction': 1, 'features_used': [19 ознак]}
 ```
 
-## 2. Развёртывание стека
+## 2. Розгортання стека
 
 ```bash
 docker compose up -d --build api mlflow prometheus grafana loki promtail \
                             alertmanager node-exporter cadvisor pushgateway
 ```
 
-Все 10 контейнеров в состоянии `Up`, healthcheck'и проходят.
+Усі 10 контейнерів у стані `Up`, healthcheck'и проходять.
 
-## 3. Проверка компонентов
+## 3. Перевірка компонентів
 
-**Prometheus targets — 8 из 8 UP:**
+**Prometheus targets — 8 з 8 UP:**
 
 ```
 UP  alertmanager    http://alertmanager:9093/metrics
@@ -62,57 +62,57 @@ UP  prometheus      http://localhost:9090/metrics
 UP  pushgateway     http://pushgateway:9091/metrics
 ```
 
-**Правила:** 12 групп, 36 правил (`ml_alerts.yml`, `api_alerts.yml`,
+**Правила:** 12 груп, 36 правил (`ml_alerts.yml`, `api_alerts.yml`,
 `infra_alerts.yml`, `recording_rules.yml`).
 
-**Grafana:** три датасорса (Prometheus, Loki, Alertmanager) и два дашборда
-(`ML Model Health — Telco Churn`, `API Performance — Telco Churn`) поднимаются
-через provisioning автоматически.
+**Grafana:** три джерела даних (Prometheus, Loki, Alertmanager) та два дашборди
+(`ML Model Health — Telco Churn`, `API Performance — Telco Churn`) підіймаються
+через provisioning автоматично.
 
-**Loki:** логи `churn-api` собираются Promtail'ом, лейблы `container`, `env`,
-`job`, `service`, `stream` доступны для LogQL.
+**Loki:** логи `churn-api` збираються Promtail'ом, мітки `container`, `env`,
+`job`, `service`, `stream` доступні для LogQL.
 
-## 4. Нагрузка и метрики
+## 4. Навантаження та метрики
 
 ```bash
 python scripts/load_test.py --requests 3000 --concurrency 4
 python scripts/load_test.py --requests 200  --error-rate 0.25
 ```
 
-| Показатель | Значение |
+| Показник | Значення |
 |---|---|
-| Предсказаний обработано | 3328 (200 OK) + 55 (422) |
-| Распределение | churn 75 % / no_churn 25 % |
-| p99 latency инференса | 158 ms |
+| Оброблено передбачень | 3328 (200 OK) + 55 (422) |
+| Розподіл | churn 75 % / no_churn 25 % |
+| p99 latency інференсу | 158 ms |
 | p99 latency HTTP `/predict` | 226 ms |
 | Throughput | ~10 req/s на `/predict` |
 
-## 5. Метрики качества модели через Pushgateway
+## 5. Метрики якості моделі через Pushgateway
 
-Добавлен скрипт `monitoring/push_model_metrics.py`: оценивает сохранённую модель
-на hold-out выборке и публикует `model_accuracy`, `model_f1_score`, `model_auc_roc`
-в Pushgateway (паттерн из презентации — метрики качества публикует пайплайн
-обучения, а не сервис инференса).
+Додано скрипт `monitoring/push_model_metrics.py`: оцінює збережену модель
+на hold-out вибірці та публікує `model_accuracy`, `model_f1_score`, `model_auc_roc`
+у Pushgateway (патерн із презентації — метрики якості публікує пайплайн
+тренування, а не сервіс інференсу).
 
 ```
-pushed: accuracy=0.6420  f1=0.6299  auc=...
+pushed: accuracy=0.6420  f1=0.6299
 ```
 
-## 6. Детекция дрейфа
+## 6. Детекція дрейфу
 
-Датасет сгенерирован с встроенным дрейфом между 2023 и 2024 годом, поэтому
-reference/live разделены по году записи:
+Датасет згенеровано з вбудованим дрейфом між 2023 та 2024 роком, тому
+reference/live розділено за роком запису:
 
 ```bash
-# data/reference/ — 9 971 запись за 2023
-# data/live/      — 10 029 записей за 2024
+# data/reference/ — 9 971 запис за 2023
+# data/live/      — 10 029 записів за 2024
 
 python monitoring/drift_monitor.py \
   --reference data/reference/ --live data/live/ \
   --pushgateway http://localhost:9091 --model-version v1.0-local
 ```
 
-| Признак | Тест | Значение | Уровень |
+| Ознака | Тест | Значення | Рівень |
 |---|---|---|---|
 | MonthlyCharges | KS | 0.2244 | moderate |
 | TotalCharges | KS | 0.1964 | minor |
@@ -120,54 +120,54 @@ python monitoring/drift_monitor.py \
 | Contract | PSI | 0.0563 | stable |
 | InternetService | PSI | 0.0567 | stable |
 | PaymentMethod | PSI | 0.0688 | stable |
-| gender / Partner / Dependents | PSI | ≤ 0.0228 | stable |
+| gender / Partner / Dependents | PSI | до 0.0228 | stable |
 
-## 7. Композитный Model Health Score
+## 7. Композитний Model Health Score
 
 ```
 job:model_health:composite_score = 0.767
-= 0.4 × 0.642 (accuracy) + 0.4 × (1 − 0.224) (drift) + 0.2 × 1 (uptime)
+= 0.4 x 0.642 (accuracy) + 0.4 x (1 - 0.224) (drift) + 0.2 x 1 (uptime)
 ```
 
-## Исправления относительно шаблона
+## Виправлення відносно шаблону
 
-1. **`pipelines/train.py`** — в признаки попадали `customerID` и `RecordDate`,
-   из-за чего обученная модель требовала эти колонки и падала на запросах от API
-   (в котором их нет). Добавлено удаление идентификатора и даты перед обучением.
-2. **`mlflow_db/mlflow.db`** — закоммиченная БД создана более новой версией MLflow,
-   чем образ v2.11.3: контейнер падал с `alembic ... Can't locate revision '1b5f0d9ad7c1'`.
-   Несовместимый файл убран, MLflow создаёт схему заново.
-3. **Healthcheck'и в `docker-compose.yml`** — вызывали `curl`, которого нет в
-   `python:3.11-slim`; сервисы висели в статусе `unhealthy`. Заменены на
+1. **`pipelines/train.py`** — до ознак потрапляли `customerID` і `RecordDate`,
+   через що натренована модель вимагала ці колонки й падала на запитах від API
+   (у якому їх немає). Додано видалення ідентифікатора та дати перед тренуванням.
+2. **`mlflow_db/mlflow.db`** — закомічена БД створена новішою версією MLflow,
+   ніж образ v2.11.3: контейнер падав із `alembic ... Can't locate revision '1b5f0d9ad7c1'`.
+   Несумісний файл прибрано, MLflow створює схему заново.
+3. **Healthcheck'и у `docker-compose.yml`** — викликали `curl`, якого немає в
+   `python:3.11-slim`; сервіси висіли у статусі `unhealthy`. Замінено на
    `python -c "import urllib.request; ..."`.
-4. **Дашборды Grafana** — экспортированы с плейсхолдерами `${DS_PROMETHEUS}` /
-   `${DS_LOKI}`, которые provisioning не раскрывает: все панели показывали
-   `Datasource ${DS_PROMETHEUS} was not found`. Плейсхолдеры заменены на реальные
-   uid (`prometheus_telco`, `loki_telco`), блоки `__inputs` / `__requires` удалены.
+4. **Дашборди Grafana** — експортовані з плейсхолдерами `${DS_PROMETHEUS}` /
+   `${DS_LOKI}`, які provisioning не розкриває: усі панелі показували
+   `Datasource ${DS_PROMETHEUS} was not found`. Плейсхолдери замінено на реальні
+   uid (`prometheus_telco`, `loki_telco`), блоки `__inputs` / `__requires` видалено.
 5. **`src/api/main.py`** — HTTP-метрики `api_requests_total`, `request_duration_seconds`
-   и `active_http_connections`, на которых построен дашборд API Performance, нигде
-   не заполнялись (middleware лежал в нерабочем `src/app_with_metrics.py`, который
-   к тому же импортирует несуществующую функцию `validate_feature` из `src/metrics.py`).
-   Добавлен рабочий `MetricsMiddleware`.
+   та `active_http_connections`, на яких побудовано дашборд API Performance, ніде
+   не заповнювалися (middleware лежав у неробочому `src/app_with_metrics.py`, який
+   до того ж імпортує неіснуючу функцію `validate_feature` із `src/metrics.py`).
+   Додано робочий `MetricsMiddleware`.
 6. **`monitoring/prometheus/rules/recording_rules.yml`** — правило
-   `job:model_health:composite_score` складывало `model_accuracy` (с лейблами
-   `model_version`, `dataset_split`, `job`) с безлейбловыми агрегатами, из-за чего
-   PromQL возвращал пустой вектор. Первый член обёрнут в `max()`, интервал расчёта
-   снижен с 5m до 1m.
-7. **`docker-compose.monitoring.yml`** — дублирует сервисы, уже описанные в
-   `docker-compose.yml`, и объявляет сеть как `external`. Запуск обоих файлов через
-   `-f ... -f ...` (как советуют Makefile и презентация) приводит к конфликту, поэтому
-   стек поднимается одним `docker-compose.yml`.
+   `job:model_health:composite_score` додавало `model_accuracy` (з мітками
+   `model_version`, `dataset_split`, `job`) до агрегатів без міток, через що
+   PromQL повертав порожній вектор. Перший доданок загорнуто у `max()`, інтервал
+   обчислення знижено з 5m до 1m.
+7. **`docker-compose.monitoring.yml`** — дублює сервіси, вже описані у
+   `docker-compose.yml`, і оголошує мережу як `external`. Запуск обох файлів через
+   `-f ... -f ...` (як радять Makefile і презентація) призводить до конфлікту, тому
+   стек піднімається одним `docker-compose.yml`.
 
-## Панели, оставшиеся без данных — и почему
+## Панелі, що лишилися без даних — і чому
 
 | Панель | Причина |
 |---|---|
-| Error Rate % / 5xx Error Rate | Ошибки нагрузочного теста — 422 (pydantic отклоняет запрос до обработчика), счётчик `predictions_total{outcome="error"}` не растёт; 5xx не возникало |
-| Null Feature Counts | Генератор нагрузки не отправляет null-поля |
-| Recent Errors & Warnings | В логах нет записей уровня ERROR |
+| Error Rate % / 5xx Error Rate | Помилки навантажувального тесту — 422 (pydantic відхиляє запит до обробника), лічильник `predictions_total{outcome="error"}` не зростає; 5xx не виникало |
+| Null Feature Counts | Генератор навантаження не надсилає null-поля |
+| Recent Errors & Warnings | У логах немає записів рівня ERROR |
 
-## Очистка
+## Очищення
 
 ```bash
 docker compose down
