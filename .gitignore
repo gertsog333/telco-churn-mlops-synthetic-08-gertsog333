@@ -209,3 +209,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# --- Module 08: артефакты, которые не должны попадать в git ---
+models/*.pkl
+mlflow_db/*.db
+mlflow_db/*.incompatible-backup
+data/reference/
+data/live/

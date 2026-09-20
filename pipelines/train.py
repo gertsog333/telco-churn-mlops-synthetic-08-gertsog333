@@ -142,6 +142,7 @@ def main():
 		sys.exit(2)
 
 	X = df.drop('Churn', axis=1)
+	X = X.drop(columns=[c for c in ('customerID', 'RecordDate', 'Year') if c in X.columns])
 	y = df['Churn'].map({'Yes': 1, 'No': 0})
 
 	model = build_pipeline(X)

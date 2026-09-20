@@ -2,7 +2,8 @@ import warnings
 import time
 warnings.filterwarnings("ignore", message=".*protected namespace.*", category=UserWarning)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Response
 from datetime import datetime
 import logging
@@ -17,6 +18,9 @@ from src.metrics import (
     MODEL_LOAD_TIME,
     ACTIVE_MODEL_VERSION,
     NULL_FEATURES_TOTAL,
+    API_REQUESTS_TOTAL,
+    REQUEST_DURATION,
+    ACTIVE_CONNECTIONS,
     PREDICTION_CONFIDENCE,
     generate_latest,
     CONTENT_TYPE_LATEST,
@@ -41,6 +45,34 @@ app = FastAPI(
 
 # Автоматичні HTTP метрики (http_requests_total, http_request_duration і т.д.)
 Instrumentator().instrument(app).expose(app)
+
+
+# ── Middleware: HTTP-метрики в наши счётчики из src/metrics.py ──
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """Пишет api_requests_total, request_duration_seconds и active_http_connections
+    для каждого HTTP-запроса — их используют панели дашборда API Performance."""
+
+    async def dispatch(self, request: Request, call_next):
+        import time as _t
+        start = _t.time()
+        endpoint = request.url.path
+        status_code = "500"
+        ACTIVE_CONNECTIONS.inc()
+        try:
+            response = await call_next(request)
+            status_code = str(response.status_code)
+            return response
+        finally:
+            API_REQUESTS_TOTAL.labels(
+                method=request.method, endpoint=endpoint, status_code=status_code
+            ).inc()
+            REQUEST_DURATION.labels(
+                method=request.method, endpoint=endpoint
+            ).observe(_t.time() - start)
+            ACTIVE_CONNECTIONS.dec()
+
+
+app.add_middleware(MetricsMiddleware)
 
 
 @app.on_event("startup")
